@@ -8,4 +8,5 @@ add_executable(monitor main.cpp options.cpp)
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 include(CPack)
+
 target_link_libraries(monitor -lpcap)
