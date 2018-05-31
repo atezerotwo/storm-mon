@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <pcap.h>
@@ -29,7 +30,7 @@ show_devices_and_exit(void){
     printf("-----\t------\t-----------\n");
 
     //print name and description for each device
-    for (dev = alldevs; dev != nullptr; dev = dev->next, j++)
+    for (dev = alldevs; dev != NULL; dev = dev->next, j++)
     {
         printf("%5d", j);
         printf("\t%s", dev->name);
