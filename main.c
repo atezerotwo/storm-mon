@@ -18,6 +18,9 @@ static const struct option longopts[] = {
     {"help", no_argument, NULL, 'h'},
     {NULL, 0, NULL, 0}};
 
+struct pcap_pkthdr header;	/* The header that pcap gives us */
+const unsigned char *packet;		/* The actual packet */
+
 int main(int argc, char **argv)
 {
 
@@ -66,7 +69,7 @@ int main(int argc, char **argv)
 
         //printf("Device: %s\n", dev);
 
-        adhandle = pcap_open_live(dev, 72, 1, 1000, errbuf);
+        adhandle = pcap_open_live(dev, 72, 1, 0, errbuf);
 
         if (adhandle == NULL)
         {
@@ -94,7 +97,13 @@ int main(int argc, char **argv)
         }
 
         printf("started on %s ...\n", dev);
-        pcap_loop(adhandle, 0, packet_handler, NULL);
+        //pcap_loop(adhandle, 0, packet_handler, NULL);
+
+        packet = pcap_next(adhandle, &header);
+		/* Print its length */
+		printf("Jacked a packet with length of [%d]\n", header.len);
+		/* And close the session */
+		pcap_close(adhandle);
     }
 
     printf("no option selected\n");
