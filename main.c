@@ -19,6 +19,7 @@ static const struct option longopts[] = {
     {NULL, 0, NULL, 0}};
 
 struct pcap_pkthdr header;	/* The header that pcap gives us */
+struct pcap_stat stats;
 const unsigned char *packet;		/* The actual packet */
 
 int main(int argc, char **argv)
@@ -63,8 +64,8 @@ int main(int argc, char **argv)
         /*pcap stuff*/
         pcap_t *adhandle = NULL;
         char errbuf[PCAP_ERRBUF_SIZE];
-        char *dev = "ens38";
-        char packet_filter[] = "stp";
+        char *dev = "ens33";
+        char packet_filter[] = "";
         struct bpf_program filtercode;
 
         //printf("Device: %s\n", dev);
@@ -99,11 +100,25 @@ int main(int argc, char **argv)
         printf("started on %s ...\n", dev);
         //pcap_loop(adhandle, 0, packet_handler, NULL);
 
+        unsigned int pcount = 0;
+        int len = 0;
+        int statret;
+
+        while(1) {
+
         packet = pcap_next(adhandle, &header);
+
+        statret = pcap_stats(adhandle, &stats);
+
 		/* Print its length */
-		printf("Jacked a packet with length of [%d]\n", header.len);
+        //printf("Jacked a packet with length of [%d]\n", header.len);
+		//printf("\rPackets seen: %u with length of: %d", pcount++, header.len);
+        printf("\rPackets seen:%u\t recv:%u\t drop:%u\t ifdrop:%u\t length:%u ", pcount++, stats.ps_recv, stats.ps_drop, stats.ps_ifdrop);
+        fflush(stdout);
 		/* And close the session */
-		pcap_close(adhandle);
+        }
+
+		//pcap_close(adhandle);
     }
 
     printf("no option selected\n");

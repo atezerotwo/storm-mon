@@ -13,7 +13,7 @@
 #define ETHERTYPE_VLAN  0x8100 /* IEEE 802.1Q VLAN tagging */
 #define ETHERTYPE_ARP	0x0806 /* Address resolution */
 
-int packetcount = 0;
+unsigned int packetcount = 0;
 
 void packet_handler(unsigned char *param, const struct pcap_pkthdr *header, const unsigned char *pkt_data)
 {
