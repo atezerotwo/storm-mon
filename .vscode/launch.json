@@ -9,11 +9,11 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/monitor",
-            "args": [],
-            "stopAtEntry": false,
+            "args": ["-c"],
+            "stopAtEntry": true,
             "cwd": "${workspaceFolder}",
             "environment": [],
-            "externalConsole": true,
+            "externalConsole": false,
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -22,6 +22,7 @@
                     "ignoreFailures": true
                 }
             ]
+
         }
     ]
 }
