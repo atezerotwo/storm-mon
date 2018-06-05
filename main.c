@@ -26,54 +26,56 @@ int Cflag;
 /* Ethernet header */
 struct ethernet_header
 {
-    u_char ether_dhost[ETHER_ADDR_LEN]; /* Destination host address */
-    u_char ether_shost[ETHER_ADDR_LEN]; /* Source host address */
-    u_int16_t ether_type;               /* IP? ARP? RARP? etc */
+    unsigned char ether_dhost[ETHER_ADDR_LEN]; /* Destination host address */
+    unsigned char ether_shost[ETHER_ADDR_LEN]; /* Source host address */
+    u_int16_t ether_type;                      /* IP? ARP? RARP? etc */
 };
 
 struct llc_hdr
 {
-    u_char dsap;
-    u_char ssap;
-    u_char ctrl;
+    unsigned char dsap;
+    unsigned char ssap;
+    unsigned char ctrl;
 };
 
 struct stp_root_id
 {
-    u_char root_priority;
-    u_char extension;
-    u_char root_addr[ETHER_ADDR_LEN];
+    unsigned char root_priority;
+    unsigned char extension;
+    unsigned char root_addr[ETHER_ADDR_LEN];
 };
 
-struct stp_payload
+// struct stp_bpdu_
+// {
+//     unsigned short protocol_id;
+//     unsigned char version;
+//     unsigned char type;
+//     unsigned char flags;
+//     struct stp_root_id root_id;
+//     u_int32_t root_path_cost;
+//     struct stp_root_id sender_id;;
+//     unsigned char port[2];
+//     unsigned short message_age;
+//     unsigned short max_age;
+//     unsigned short forward_delay;
+// };
+
+struct stp_bpdu_
 {
-    u_short protcol_id;
-    u_char version;
-    u_char type;
-    u_char flags;
-    struct stp_root_id root_id;
-    u_int16_t root_cost;
-    struct stp_root_id sender_id;;
-    u_char port[2];
-    u_short message_age;
-    u_short max_age;
-    u_short forward_delay;
-};
-
-struct stp_bpdu_ {
     u_int16_t protocol_id;
-    u_int8_t  protocol_version;
-    u_int8_t  bpdu_type;
-    u_int8_t  flags;
-    u_char    root_id[8];
-    u_int32_t root_path_cost;
-    u_char     bridge_id[8];
+    u_int8_t protocol_version;
+    u_int8_t bpdu_type;
+    u_int8_t flags;
+    unsigned char root_id[8];
+    u_int16_t root_path_cost_a;
+    u_int16_t root_path_cost_b;
+    unsigned char bridge_id[8];
     u_int16_t port_id;
     u_int16_t message_age;
     u_int16_t max_age;
     u_int16_t hello_time;
     u_int16_t forward_delay;
-    u_int8_t  v1_length;
+    u_int8_t v1_length;
 };
 
 static const struct option longopts[] = {
@@ -185,14 +187,23 @@ int main(int argc, char **argv)
             llc = (struct llc_hdr *)(packet + SIZE_ETHERNET);
             payload = (struct stp_bpdu_ *)(packet + SIZE_ETHERNET + SIZE_LLC);
 
+            int n = 39, i = 0;
+            unsigned char* byte_array = packet;
+
+            while (i < n)
+            {
+                printf("%02X ", (unsigned)byte_array[i]);
+                i++;
+            }
+
             if (ntohs(ethernet->ether_type) <= IEEE_802_3_MAX_LEN)
             {
                 ethhdr_type = ETHERNET_802_2;
-                printf("802.2 packet: length:%d\n", ntohs(ethernet->ether_type));
+                printf("\n802.2 packet: length:%d\n", ntohs(ethernet->ether_type));
 
                 if (llc->dsap == DSAP_STP)
                 {
-                    printf("STP packet\n");
+                    printf("STP packet: path cost %d\n", ntohs(payload->root_path_cost_a));
                 }
             }
 
