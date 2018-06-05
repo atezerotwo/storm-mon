@@ -1,3 +1,6 @@
+//credit tcpdump
+//credit wireshark
+
 #include <stdio.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -11,6 +14,22 @@ int Dflag;
 int Vflag;
 int Hflag;
 int Cflag;
+
+
+/* see netdisect on tcpdump */
+typedef unsigned char nd_uint8_t[1];
+typedef unsigned char nd_uint16_t[2];
+typedef unsigned char nd_uint24_t[3];
+typedef unsigned char nd_uint32_t[4];
+typedef unsigned char nd_uint40_t[5];
+typedef unsigned char nd_uint48_t[6];
+typedef unsigned char nd_uint56_t[7];
+typedef unsigned char nd_uint64_t[8];
+typedef unsigned char nd_byte;
+typedef signed char nd_int8_t[1];
+typedef unsigned char nd_int32_t[4];
+typedef unsigned char nd_int64_t[8];
+
 
 #define ETHER_ADDR_LEN 6
 #define SIZE_ETHERNET 14
@@ -30,7 +49,7 @@ struct ethernet_header
     unsigned char ether_shost[ETHER_ADDR_LEN]; /* Source host address */
     u_int16_t ether_type;                      /* IP? ARP? RARP? etc */
 };
-
+/* LLC header after ethernet header */
 struct llc_hdr
 {
     unsigned char dsap;
@@ -38,55 +57,35 @@ struct llc_hdr
     unsigned char ctrl;
 };
 
-struct stp_root_id
-{
-    unsigned char root_priority;
-    unsigned char extension;
-    unsigned char root_addr[ETHER_ADDR_LEN];
+/* STP BPDU */
+struct stp_bpdu_ {
+    nd_uint16_t protocol_id;
+    nd_uint8_t  protocol_version;
+    nd_uint8_t  bpdu_type;
+    nd_uint8_t  flags;
+    nd_byte     root_id[8];
+    nd_uint32_t root_path_cost;
+    nd_byte     bridge_id[8];
+    nd_uint16_t port_id;
+    nd_uint16_t message_age;
+    nd_uint16_t max_age;
+    nd_uint16_t hello_time;
+    nd_uint16_t forward_delay;
+    nd_uint8_t  v1_length;
 };
 
-// struct stp_bpdu_
-// {
-//     unsigned short protocol_id;
-//     unsigned char version;
-//     unsigned char type;
-//     unsigned char flags;
-//     struct stp_root_id root_id;
-//     u_int32_t root_path_cost;
-//     struct stp_root_id sender_id;;
-//     unsigned char port[2];
-//     unsigned short message_age;
-//     unsigned short max_age;
-//     unsigned short forward_delay;
-// };
 
-struct stp_bpdu_
-{
-    u_int16_t protocol_id;
-    u_int8_t protocol_version;
-    u_int8_t bpdu_type;
-    u_int8_t flags;
-    unsigned char root_id[8];
-    u_int16_t root_path_cost_a;
-    u_int16_t root_path_cost_b;
-    unsigned char bridge_id[8];
-    u_int16_t port_id;
-    u_int16_t message_age;
-    u_int16_t max_age;
-    u_int16_t hello_time;
-    u_int16_t forward_delay;
-    u_int8_t v1_length;
-};
+struct pcap_pkthdr header; /* The header that pcap gives us */
+struct pcap_stat stats;
+const unsigned char *packet; /* The actual packet */
 
+/* argument parser config */
 static const struct option longopts[] = {
     {"list-interfaces", no_argument, NULL, 'D'},
     {"version", no_argument, NULL, 'v'},
     {"help", no_argument, NULL, 'h'},
     {NULL, 0, NULL, 0}};
 
-struct pcap_pkthdr header; /* The header that pcap gives us */
-struct pcap_stat stats;
-const unsigned char *packet; /* The actual packet */
 
 int main(int argc, char **argv)
 {
@@ -187,7 +186,7 @@ int main(int argc, char **argv)
             llc = (struct llc_hdr *)(packet + SIZE_ETHERNET);
             payload = (struct stp_bpdu_ *)(packet + SIZE_ETHERNET + SIZE_LLC);
 
-            int n = 39, i = 0;
+            int n = 60, i = 0;
             unsigned char* byte_array = packet;
 
             while (i < n)
@@ -203,7 +202,7 @@ int main(int argc, char **argv)
 
                 if (llc->dsap == DSAP_STP)
                 {
-                    printf("STP packet: path cost %d\n", ntohs(payload->root_path_cost_a));
+                    printf("STP packet: path cost %d\n", ntohs(payload->root_path_cost));
                 }
             }
 
