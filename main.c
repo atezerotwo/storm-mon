@@ -8,13 +8,8 @@
 #include <getopt.h>
 #include "options.h"
 #include "handler.h"
-
-char op;
-int Dflag;
-int Vflag;
-int Hflag;
-int Cflag;
-
+#include "extract.h"
+#include <string.h>
 
 /* see netdisect on tcpdump */
 typedef unsigned char nd_uint8_t[1];
@@ -30,12 +25,12 @@ typedef signed char nd_int8_t[1];
 typedef unsigned char nd_int32_t[4];
 typedef unsigned char nd_int64_t[8];
 
-
 #define ETHER_ADDR_LEN 6
 #define SIZE_ETHERNET 14
 #define SIZE_LLC 3
 #define DSAP_STP 0x42
 #define IEEE_802_3_MAX_LEN 0x5DC
+#define STP_TIME_BASE 256
 
 #define ETHERNET_II 0
 #define ETHERNET_802_2 1
@@ -58,34 +53,44 @@ struct llc_hdr
 };
 
 /* STP BPDU */
-struct stp_bpdu_ {
+struct stp_bpdu_
+{
     nd_uint16_t protocol_id;
-    nd_uint8_t  protocol_version;
-    nd_uint8_t  bpdu_type;
-    nd_uint8_t  flags;
-    nd_byte     root_id[8];
+    nd_uint8_t protocol_version;
+    nd_uint8_t bpdu_type;
+    nd_uint8_t flags;
+    nd_byte root_id[8];
     nd_uint32_t root_path_cost;
-    nd_byte     bridge_id[8];
+    nd_byte bridge_id[8];
     nd_uint16_t port_id;
     nd_uint16_t message_age;
     nd_uint16_t max_age;
     nd_uint16_t hello_time;
     nd_uint16_t forward_delay;
-    nd_uint8_t  v1_length;
+    nd_uint8_t v1_length;
 };
 
-
-struct pcap_pkthdr header; /* The header that pcap gives us */
-struct pcap_stat stats;
+struct pcap_pkthdr header;   /* The header that pcap gives us */
+struct pcap_stat stats;      /* for libpcap stats */
 const unsigned char *packet; /* The actual packet */
 
+
+
 /* argument parser config */
+
+    //vars for get_long
+    char op;
+    int Dflag;
+    int Vflag;
+    int Hflag;
+    int Cflag;
+
+
 static const struct option longopts[] = {
     {"list-interfaces", no_argument, NULL, 'D'},
     {"version", no_argument, NULL, 'v'},
     {"help", no_argument, NULL, 'h'},
     {NULL, 0, NULL, 0}};
-
 
 int main(int argc, char **argv)
 {
@@ -186,23 +191,22 @@ int main(int argc, char **argv)
             llc = (struct llc_hdr *)(packet + SIZE_ETHERNET);
             payload = (struct stp_bpdu_ *)(packet + SIZE_ETHERNET + SIZE_LLC);
 
-            int n = 60, i = 0;
-            unsigned char* byte_array = packet;
-
-            while (i < n)
-            {
-                printf("%02X ", (unsigned)byte_array[i]);
-                i++;
-            }
-
             if (ntohs(ethernet->ether_type) <= IEEE_802_3_MAX_LEN)
             {
                 ethhdr_type = ETHERNET_802_2;
                 printf("\n802.2 packet: length:%d\n", ntohs(ethernet->ether_type));
 
                 if (llc->dsap == DSAP_STP)
-                {
-                    printf("STP packet: path cost %d\n", ntohs(payload->root_path_cost));
+                {   
+                    printf("STP Root Priority:%d\n", EXTRACT_BE_U_2(payload->root_id));
+                    //printf("STP Port Priority:%#06x\n", EXTRACT_BE_U_6(payload->root_id));
+                    printf("STP Root Path cost %d\n", EXTRACT_BE_U_4(payload->root_path_cost));
+                    printf("STP Port Priority:%#06x\n", EXTRACT_BE_U_2(payload->port_id));
+                    printf("STP Message Age:%d\n", EXTRACT_BE_U_2(payload->message_age) / STP_TIME_BASE);
+                    printf("STP Max Age:%d\n", EXTRACT_BE_U_2(payload->max_age) / STP_TIME_BASE);
+                    printf("STP Hello Time:%d\n", EXTRACT_BE_U_2(payload->hello_time) / STP_TIME_BASE);
+                    printf("STP Forward Delay:%d\n", EXTRACT_BE_U_2(payload->forward_delay) / STP_TIME_BASE);
+
                 }
             }
 
@@ -223,7 +227,6 @@ int main(int argc, char **argv)
                    (unsigned char)ethernet->ether_shost[3],
                    (unsigned char)ethernet->ether_shost[4],
                    (unsigned char)ethernet->ether_shost[5]);
-            printf("Payload type %#06x\n", payload->protocol_id);
             //printf("\rPackets seen:%u\t recv:%u\t drop:%u\t ifdrop:%u", pcount++, stats.ps_recv, stats.ps_drop, stats.ps_ifdrop);
             fflush(stdout);
             /* And close the session */
