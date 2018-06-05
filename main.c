@@ -6,10 +6,10 @@
 #include <arpa/inet.h>
 #include <pcap.h>
 #include <getopt.h>
+#include <string.h>
 #include "options.h"
 #include "handler.h"
 #include "extract.h"
-#include <string.h>
 
 /* see netdisect on tcpdump */
 typedef unsigned char nd_uint8_t[1];
@@ -44,6 +44,7 @@ struct ethernet_header
     unsigned char ether_shost[ETHER_ADDR_LEN]; /* Source host address */
     u_int16_t ether_type;                      /* IP? ARP? RARP? etc */
 };
+
 /* LLC header after ethernet header */
 struct llc_hdr
 {
@@ -74,17 +75,14 @@ struct pcap_pkthdr header;   /* The header that pcap gives us */
 struct pcap_stat stats;      /* for libpcap stats */
 const unsigned char *packet; /* The actual packet */
 
-
-
 /* argument parser config */
 
-    //vars for get_long
-    char op;
-    int Dflag;
-    int Vflag;
-    int Hflag;
-    int Cflag;
-
+//vars for get_long
+char op;
+int Dflag;
+int Vflag;
+int Hflag;
+int Cflag;
 
 static const struct option longopts[] = {
     {"list-interfaces", no_argument, NULL, 'D'},
@@ -134,7 +132,8 @@ int main(int argc, char **argv)
         /*pcap stuff*/
         pcap_t *adhandle = NULL;
         char errbuf[PCAP_ERRBUF_SIZE];
-        char *dev = "ens38";
+        //char *dev = "ens38";
+        char *dev = "enp2s0f3";
         char packet_filter[] = "stp";
         struct bpf_program filtercode;
 
@@ -197,7 +196,17 @@ int main(int argc, char **argv)
                 printf("\n802.2 packet: length:%d\n", ntohs(ethernet->ether_type));
 
                 if (llc->dsap == DSAP_STP)
-                {   
+                {   printf("STP Protocal ID:%#04X\n", EXTRACT_BE_U_2(payload->protocol_id));
+                    printf("STP Version:%d\n", (uint8_t)(*payload->protocol_version)); //need to assign name eg. rstp , mstp stp etc.
+                    printf("STP BPDU Type:%d\n", (uint8_t)(*payload->bpdu_type)); //need to assign name eg. rstp , mstp stp etc.
+                    printf("STP BPDU Flags:%#04x\n", (uint8_t)(*payload->flags));
+                    printf(" x... .... : TCA       : %s\n", *payload->flags & 0x80 ? "True" : "False"); 
+                    printf(" .x.. .... : Agreement : %s\n", *payload->flags & 0x40 ? "True" : "False"); 
+                    printf(" ..x. .... : Forwarding: %s\n", *payload->flags & 0x20 ? "True" : "False"); 
+                    printf(" ...x .... : Learning  : %s\n", *payload->flags & 0x10 ? "True" : "False"); 
+                    printf(" .... xx.. : Port Role : %d\n", *payload->flags & 0x0c); 
+                    printf(" .... ..x. : Proposal  : %s\n", *payload->flags & 0x2 ? "True" : "False"); 
+                    printf(" .... ...x : TC : %s\n", *payload->flags & 0x1 ? "True" : "False"); 
                     printf("STP Root Priority:%d\n", EXTRACT_BE_U_2(payload->root_id));
                     //printf("STP Port Priority:%#06x\n", EXTRACT_BE_U_6(payload->root_id));
                     printf("STP Root Path cost %d\n", EXTRACT_BE_U_4(payload->root_path_cost));
@@ -206,7 +215,6 @@ int main(int argc, char **argv)
                     printf("STP Max Age:%d\n", EXTRACT_BE_U_2(payload->max_age) / STP_TIME_BASE);
                     printf("STP Hello Time:%d\n", EXTRACT_BE_U_2(payload->hello_time) / STP_TIME_BASE);
                     printf("STP Forward Delay:%d\n", EXTRACT_BE_U_2(payload->forward_delay) / STP_TIME_BASE);
-
                 }
             }
 
