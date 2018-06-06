@@ -10,6 +10,7 @@
 #include "options.h"
 #include "handler.h"
 #include "extract.h"
+#include <time.h>
 
 /* see netdisect on tcpdump */
 typedef unsigned char nd_uint8_t[1];
@@ -84,6 +85,33 @@ int Vflag;
 int Hflag;
 int Cflag;
 
+static char *
+stp_print_bridge_id(const u_char *p)
+{
+    static char bridge_id_str[sizeof("pppp.aa:bb:cc:dd:ee:ff")];
+
+    snprintf(bridge_id_str, sizeof(bridge_id_str),
+             "%.2x%.2x.%.2x:%.2x:%.2x:%.2x:%.2x:%.2x",
+             EXTRACT_U_1(p), EXTRACT_U_1(p + 1), EXTRACT_U_1(p + 2),
+             EXTRACT_U_1(p + 3), EXTRACT_U_1(p + 4), EXTRACT_U_1(p + 5),
+             EXTRACT_U_1(p + 6), EXTRACT_U_1(p + 7));
+
+    return bridge_id_str;
+}
+
+static char *
+eth_print_ethaddr(const u_char *p)
+{
+    static char ethaddr_id_str[sizeof("aa:bb:cc:dd:ee:ff")];
+
+    snprintf(ethaddr_id_str, sizeof(ethaddr_id_str),
+             "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x",
+             EXTRACT_U_1(p), EXTRACT_U_1(p + 1), EXTRACT_U_1(p + 2),
+             EXTRACT_U_1(p + 3), EXTRACT_U_1(p + 4), EXTRACT_U_1(p + 5));
+
+    return ethaddr_id_str;
+}
+
 static const struct option longopts[] = {
     {"list-interfaces", no_argument, NULL, 'D'},
     {"version", no_argument, NULL, 'v'},
@@ -92,6 +120,7 @@ static const struct option longopts[] = {
 
 int main(int argc, char **argv)
 {
+    clock_t t;
 
     //parse otions from command line using getopt_long
     while ((op = getopt_long(argc, argv, "dvhc", longopts, NULL)) != -1)
@@ -132,8 +161,8 @@ int main(int argc, char **argv)
         /*pcap stuff*/
         pcap_t *adhandle = NULL;
         char errbuf[PCAP_ERRBUF_SIZE];
-        //char *dev = "ens38";
-        char *dev = "enp2s0f3";
+        char *dev = "ens38";
+        //char *dev = "enp2s0f3";
         char packet_filter[] = "stp";
         struct bpf_program filtercode;
 
@@ -184,6 +213,8 @@ int main(int argc, char **argv)
 
             packet = pcap_next(adhandle, &header);
 
+            t = clock();
+
             //statret = pcap_stats(adhandle, &stats);
 
             ethernet = (struct ethernet_header *)(packet);
@@ -196,46 +227,38 @@ int main(int argc, char **argv)
                 printf("\n802.2 packet: length:%d\n", ntohs(ethernet->ether_type));
 
                 if (llc->dsap == DSAP_STP)
-                {   printf("STP Protocal ID:%#04X\n", EXTRACT_BE_U_2(payload->protocol_id));
-                    printf("STP Version:%d\n", (uint8_t)(*payload->protocol_version)); //need to assign name eg. rstp , mstp stp etc.
-                    printf("STP BPDU Type:%d\n", (uint8_t)(*payload->bpdu_type)); //need to assign name eg. rstp , mstp stp etc.
-                    printf("STP BPDU Flags:%#04x\n", (uint8_t)(*payload->flags));
-                    printf(" x... .... : TCA       : %s\n", *payload->flags & 0x80 ? "True" : "False"); 
+                {   printf("STP Protocal ID        : %#04X\n", EXTRACT_BE_U_2(payload->protocol_id));
+                    printf("STP Version            : %d\n", (uint8_t)(*payload->protocol_version)); //need to assign name eg. rstp , mstp stp etc.
+                    printf("STP BPDU Type          : %d\n", (uint8_t)(*payload->bpdu_type)); //need to assign name eg. rstp , mstp stp etc.
+                    printf("STP BPDU Flags         : %#04x\n", (uint8_t)(*payload->flags));
+                    printf(" x... .... : TChangeAck: %s\n", *payload->flags & 0x80 ? "True" : "False"); 
                     printf(" .x.. .... : Agreement : %s\n", *payload->flags & 0x40 ? "True" : "False"); 
                     printf(" ..x. .... : Forwarding: %s\n", *payload->flags & 0x20 ? "True" : "False"); 
                     printf(" ...x .... : Learning  : %s\n", *payload->flags & 0x10 ? "True" : "False"); 
-                    printf(" .... xx.. : Port Role : %d\n", *payload->flags & 0x0c); 
+                    printf(" .... xx.. : Port Role : %d\n", (*payload->flags & 0x0c) >> 2); //mask and then bitshift to the right
                     printf(" .... ..x. : Proposal  : %s\n", *payload->flags & 0x2 ? "True" : "False"); 
-                    printf(" .... ...x : TC : %s\n", *payload->flags & 0x1 ? "True" : "False"); 
-                    printf("STP Root Priority:%d\n", EXTRACT_BE_U_2(payload->root_id));
-                    //printf("STP Port Priority:%#06x\n", EXTRACT_BE_U_6(payload->root_id));
-                    printf("STP Root Path cost %d\n", EXTRACT_BE_U_4(payload->root_path_cost));
-                    printf("STP Port Priority:%#06x\n", EXTRACT_BE_U_2(payload->port_id));
-                    printf("STP Message Age:%d\n", EXTRACT_BE_U_2(payload->message_age) / STP_TIME_BASE);
-                    printf("STP Max Age:%d\n", EXTRACT_BE_U_2(payload->max_age) / STP_TIME_BASE);
-                    printf("STP Hello Time:%d\n", EXTRACT_BE_U_2(payload->hello_time) / STP_TIME_BASE);
-                    printf("STP Forward Delay:%d\n", EXTRACT_BE_U_2(payload->forward_delay) / STP_TIME_BASE);
+                    printf(" .... ...x : TChange   : %s\n", *payload->flags & 0x1 ? "True" : "False"); 
+                    printf("STP Root Priority      : %d\n", EXTRACT_BE_U_2(payload->root_id));
+                    printf("STP Root ID            : %s\n", eth_print_ethaddr((const u_char *)&payload->root_id[2]));
+                    printf("STP Root Path cost     : %d\n", EXTRACT_BE_U_4(payload->root_path_cost));
+                    printf("STP Bridge Priority    : %d\n", EXTRACT_BE_U_2(payload->bridge_id));
+                    printf("STP Bridge ID          : %s\n", eth_print_ethaddr((const u_char *)&payload->bridge_id[2]));
+                    printf("STP Port ID            : %#06x\n", EXTRACT_BE_U_2(payload->port_id));
+                    printf("STP Message Age        : %d\n", EXTRACT_BE_U_2(payload->message_age) / STP_TIME_BASE);
+                    printf("STP Max Age            : %d\n", EXTRACT_BE_U_2(payload->max_age) / STP_TIME_BASE);
+                    printf("STP Hello Time         : %d\n", EXTRACT_BE_U_2(payload->hello_time) / STP_TIME_BASE);
+                    printf("STP Forward Delay      : %d\n", EXTRACT_BE_U_2(payload->forward_delay) / STP_TIME_BASE);
                 }
             }
 
             /* Print its length */
-            //printf("Jacked a packet with length of [%d]\n", header.len);
             printf("Packets seen: %u with a payload length of: %#06x(%u)\n", pcount++, ntohs(ethernet->ether_type), ntohs(ethernet->ether_type));
-            printf("> Successfully received Dest MAC Address : %02x:%02x:%02x:%02x:%02x:%02x\n",
-                   (unsigned char)ethernet->ether_dhost[0],
-                   (unsigned char)ethernet->ether_dhost[1],
-                   (unsigned char)ethernet->ether_dhost[2],
-                   (unsigned char)ethernet->ether_dhost[3],
-                   (unsigned char)ethernet->ether_dhost[4],
-                   (unsigned char)ethernet->ether_dhost[5]);
-            printf("> Successfully received Srce MAC Address : %02x:%02x:%02x:%02x:%02x:%02x\n",
-                   (unsigned char)ethernet->ether_shost[0],
-                   (unsigned char)ethernet->ether_shost[1],
-                   (unsigned char)ethernet->ether_shost[2],
-                   (unsigned char)ethernet->ether_shost[3],
-                   (unsigned char)ethernet->ether_shost[4],
-                   (unsigned char)ethernet->ether_shost[5]);
-            //printf("\rPackets seen:%u\t recv:%u\t drop:%u\t ifdrop:%u", pcount++, stats.ps_recv, stats.ps_drop, stats.ps_ifdrop);
+            printf("> Successfully received Dest MAC Address : %s\n", eth_print_ethaddr((const u_char *)&ethernet->ether_dhost));
+            printf("> Successfully received Srce MAC Address : %s\n", eth_print_ethaddr((const u_char *)&ethernet->ether_shost));
+            t = clock() - t;
+            double time_taken = ((double)t)/CLOCKS_PER_SEC; // in seconds
+            printf("process took %f seconds to execute \n", time_taken);
+
             fflush(stdout);
             /* And close the session */
         }
