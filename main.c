@@ -12,6 +12,7 @@
 #include "extract.h"
 #include <time.h>
 
+#define u_char unsigned char
 /* see netdisect on tcpdump */
 typedef unsigned char nd_uint8_t[1];
 typedef unsigned char nd_uint16_t[2];
