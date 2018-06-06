@@ -31,7 +31,10 @@ typedef unsigned char nd_int64_t[8];
 #define SIZE_ETHERNET 14
 #define SIZE_LLC 3
 #define DSAP_STP 0x42
-#define IEEE_802_3_MAX_LEN 0x5DC
+
+#define IEEE_802_3_MAX_LEN 0x5DC //1500 <= defined as length field
+#define IEEE_ETHERNET_II_MIN_LEN 0x5FC //1536 >= defined as type field
+
 #define STP_TIME_BASE 256
 
 #define ETHERNET_II 0
@@ -71,6 +74,14 @@ struct stp_bpdu_
     nd_uint16_t hello_time;
     nd_uint16_t forward_delay;
     nd_uint8_t v1_length;
+};
+
+/* VLAN Header with Packet EthType */
+struct vlan_hdr_
+{
+    nd_uint16_t tpid; // Tag protocol identifier
+    nd_uint16_t tci;  // Tag control information PCP 3bit DEI 1 bit and VID 12bit
+    nd_uint16_t packet_type; // Ethernet Packet Type after VLAN tag 
 };
 
 struct pcap_pkthdr header;   /* The header that pcap gives us */
@@ -162,9 +173,9 @@ int main(int argc, char **argv)
         /*pcap stuff*/
         pcap_t *adhandle = NULL;
         char errbuf[PCAP_ERRBUF_SIZE];
-        char *dev = "ens38";
-        //char *dev = "enp2s0f3";
-        char packet_filter[] = "stp";
+        //char *dev = "ens38";
+        char *dev = "enp2s0f3";
+        char packet_filter[] = "vlan";
         struct bpf_program filtercode;
 
         //printf("Device: %s\n", dev);
@@ -207,6 +218,7 @@ int main(int argc, char **argv)
 
         const struct ethernet_header *ethernet;
         const struct stp_bpdu_ *payload;
+        const struct vlan_hdr_ *vlan_payload;
         const struct llc_hdr *llc;
 
         while (1)
@@ -220,10 +232,11 @@ int main(int argc, char **argv)
 
             ethernet = (struct ethernet_header *)(packet);
             llc = (struct llc_hdr *)(packet + SIZE_ETHERNET);
-            payload = (struct stp_bpdu_ *)(packet + SIZE_ETHERNET + SIZE_LLC);
+            
 
             if (ntohs(ethernet->ether_type) <= IEEE_802_3_MAX_LEN)
             {
+                payload = (struct stp_bpdu_ *)(packet + SIZE_ETHERNET + SIZE_LLC);
                 ethhdr_type = ETHERNET_802_2;
                 printf("\n802.2 packet: length:%d\n", ntohs(ethernet->ether_type));
 
@@ -250,6 +263,21 @@ int main(int argc, char **argv)
                     printf("STP Hello Time         : %d\n", EXTRACT_BE_U_2(payload->hello_time) / STP_TIME_BASE);
                     printf("STP Forward Delay      : %d\n", EXTRACT_BE_U_2(payload->forward_delay) / STP_TIME_BASE);
                 }
+            }
+
+            if (ntohs(ethernet->ether_type) >= IEEE_ETHERNET_II_MIN_LEN)
+            {
+                ethhdr_type = ETHERNET_II;
+                printf("\nEthernet II packet: type:%#06x\n", ntohs(ethernet->ether_type));
+
+                if(ntohs(ethernet->ether_type) == 0x8100)
+                {   
+                    vlan_payload = (struct vlan_hdr_ *)(packet + 12);
+                    printf("VLAN Packet  : %#06x\n", ntohs(*vlan_payload->tpid));
+                    printf("VLAN ID      : %d\n",    ntohs(*vlan_payload->tci & 0x0fff));
+                    printf("Encapsulated : %#06x\n", ntohs(*vlan_payload->packet_type));
+                }
+
             }
 
             /* Print its length */
